@@ -96,9 +96,18 @@ int main()
     sm = pio_claim_unused_sm(pio, true);
     pio_matrix_program_init(pio, sm, offset, MATRIX);
     
-    //Loop principal
-    while (true) {
-        printf("Hello World!!\n");
+    bool cor = true;
+    while (true)
+    {
+        cor = !cor;
+        // Atualiza o conteúdo do display com animações
+        //ssd1306_fill(&ssd, cor); // Limpa o display
+        //ssd1306_rect(&ssd, 3, 3, 122, 58, cor, !cor); // Desenha um retângulo
+        ssd1306_draw_string(&ssd, "r s t u v", 8, 10); // Desenha uma string
+        ssd1306_draw_string(&ssd, "w x y z", 8, 30); // Desenha uma string
+        ssd1306_draw_string(&ssd, "PROF WILTON", 8, 48); // Desenha uma string      
+        ssd1306_send_data(&ssd); // Atualiza o display
+
         sleep_ms(1000);
     }
 }
