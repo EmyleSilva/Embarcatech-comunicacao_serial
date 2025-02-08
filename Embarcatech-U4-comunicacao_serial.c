@@ -24,8 +24,6 @@
 // Definições UART
 #define UART_ID uart0
 #define BAUD_RATE 115200
-#define UART_TX_PIN 0
-#define UART_RX_PIN 1
 
 //Define a quantidade de LEDS da matriz
 #define NUM_PIXELS 25
@@ -158,6 +156,15 @@ void draw_number()
 }
 
 /**
+ * Desliga todos os leds da matriz de LEDS
+ */
+void clear_matrix()
+{
+    for (int i = 0; i < NUM_PIXELS; i++)
+        pio_sm_put_blocking(pio, sm, matrix_rgb(0.0, 0.0, 0.0));
+}
+
+/**
  * Exibe um caracter no display
  */
 void draw_display_c(char c)
@@ -195,10 +202,10 @@ static void gpio_irq_handler(uint gpio, uint32_t events)
 
             if (led_g_active)
             {
-                uart_puts(UART_ID, "Led verde -> ligado\n"); 
+                printf("Led verde -> ligado\n"); 
                 draw_display_string("LED VERDE", "Ligado");
             }else {
-                uart_puts(UART_ID, "Led verde -> desligado\n");
+                printf("Led verde -> desligado\n");
                 draw_display_string("LED VERDE", "Desligado");
             }
         }else {
@@ -207,10 +214,10 @@ static void gpio_irq_handler(uint gpio, uint32_t events)
 
             if (led_b_active)
             {
-                uart_puts(UART_ID, "Led azul -> ligado\n");
+                printf("Led azul -> ligado\n");
                 draw_display_string("LED AZUL", "Ligado");
             }else {
-                uart_puts(UART_ID, "Led azul -> desligado\n");
+                printf("Led azul -> desligado\n");
                 draw_display_string("LED AZUL", "Desligado");
             }
         }
@@ -247,8 +254,6 @@ int main()
      * Configuração do UART
      */
     uart_init(uart0, BAUD_RATE);
-    gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART); // Configura o pino 0 para TX
-    gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART); // Configura o pino 1 para RX
 
     /**
      * Configuração do PIO para matriz de LEDS
@@ -260,6 +265,8 @@ int main()
     uint offset = pio_add_program(pio, &pio_matrix_program);
     sm = pio_claim_unused_sm(pio, true);
     pio_matrix_program_init(pio, sm, offset, MATRIX);
+    clear_matrix(); //Limpa a matriz de leds
+
 
     /**
      * Funções de callback que lidam com acionamentos de botões (A e B)
@@ -269,17 +276,20 @@ int main()
     
     while (true)
     {
-        if (uart_is_readable(UART_ID))
+        if (stdio_usb_connected())
         {
-            char c = uart_getc(UART_ID);
-            if (c >= '0' && c <= '9')
+            char c;
+            if (scanf("%c", &c) == 1)
             {
-                number_index = c - 48;
-                printf("Numero: %d\n", number_index);
-                draw_number();
+                if (c >= '0' && c <= '9')
+                {
+                    number_index = c - 48;
+                    printf("Numero: %d\n", number_index);
+                    draw_number();
 
+                }
+                draw_display_c(c);
             }
-            draw_display_c(c);
         }
         sleep_ms(500);
     }
