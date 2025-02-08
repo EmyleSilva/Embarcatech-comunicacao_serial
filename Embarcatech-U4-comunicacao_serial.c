@@ -24,9 +24,14 @@
 // Definições UART
 #define UART_ID uart0
 #define BAUD_RATE 115200
+#define UART_TX_PIN 0
+#define UART_RX_PIN 1
 
 //Define a quantidade de LEDS da matriz
 #define NUM_PIXELS 25
+
+//Define tempo de Debounce em ms
+#define DEBOUNCE_TIME_MS 200
 
 /**
  * Variaveis globais
@@ -39,6 +44,7 @@ bool led_g_active = false;
 bool led_b_active = false;
 bool display_color = false;
 int number_index = 0;
+volatile uint32_t last_time = 0;
 
 /**
  * Matriz que guarda os frames dos números
@@ -161,6 +167,56 @@ void draw_display_c(char c)
     ssd1306_send_data(&ssd); //Envia os dados para o display
 }
 
+void draw_display_string(char *s1, char *s2)
+{
+    ssd1306_fill(&ssd, display_color); //Limpa o display
+    ssd1306_draw_string(&ssd, s1, 20, 20); //Desenha a primeira string
+    ssd1306_draw_string(&ssd, s2, 20, 40); //Desenha a segunda string
+    ssd1306_send_data(&ssd); //Envia os dados para o display
+}
+
+/**
+ * Função de callback para lidar com acionamentos dos botões 
+ */
+static void gpio_irq_handler(uint gpio, uint32_t events)
+{
+    uint32_t current_time = to_ms_since_boot(get_absolute_time());
+
+    if ((current_time - last_time) > DEBOUNCE_TIME_MS) //Debounce
+    {
+        last_time = current_time;
+
+        //Verifica qual dos botões foi acionado.
+        //Muda o estado do led correspondente e exibe informações sobre mudança de estado do led
+        if (gpio == BUTTON_A)
+        {
+            led_g_active = !led_g_active;
+            gpio_put(green_led_pin, led_g_active);
+
+            if (led_g_active)
+            {
+                uart_puts(UART_ID, "Led verde -> ligado\n"); 
+                draw_display_string("LED VERDE", "Ligado");
+            }else {
+                uart_puts(UART_ID, "Led verde -> desligado\n");
+                draw_display_string("LED VERDE", "Desligado");
+            }
+        }else {
+            led_b_active = !led_b_active;
+            gpio_put(blue_led_pin, led_b_active);
+
+            if (led_b_active)
+            {
+                uart_puts(UART_ID, "Led azul -> ligado\n");
+                draw_display_string("LED AZUL", "Ligado");
+            }else {
+                uart_puts(UART_ID, "Led azul -> desligado\n");
+                draw_display_string("LED AZUL", "Desligado");
+            }
+        }
+    }
+}
+
 int main()
 {
     stdio_init_all();
@@ -191,6 +247,8 @@ int main()
      * Configuração do UART
      */
     uart_init(uart0, BAUD_RATE);
+    gpio_set_function(UART_TX_PIN, GPIO_FUNC_UART); // Configura o pino 0 para TX
+    gpio_set_function(UART_RX_PIN, GPIO_FUNC_UART); // Configura o pino 1 para RX
 
     /**
      * Configuração do PIO para matriz de LEDS
@@ -202,6 +260,12 @@ int main()
     uint offset = pio_add_program(pio, &pio_matrix_program);
     sm = pio_claim_unused_sm(pio, true);
     pio_matrix_program_init(pio, sm, offset, MATRIX);
+
+    /**
+     * Funções de callback que lidam com acionamentos de botões (A e B)
+     */
+    gpio_set_irq_enabled_with_callback(BUTTON_A, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
+    gpio_set_irq_enabled_with_callback(BUTTON_B, GPIO_IRQ_EDGE_FALL, true, &gpio_irq_handler);
     
     while (true)
     {
