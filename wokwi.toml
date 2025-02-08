@@ -1,0 +1,4 @@
+[wokwi]
+version = 1
+firmware = 'build/Embarcatech-U4-comunicacao_serial.uf2'
+elf = 'build/Embarcatech-U4-comunicacao_serial.elf'
