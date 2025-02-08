@@ -25,12 +25,87 @@
 #define UART_ID uart0
 #define BAUD_RATE 115200
 
+//Define a quantidade de LEDS da matriz
+#define NUM_PIXELS 25
 
 /**
  * Variaveis globais
  */
+
+ssd1306_t ssd; // Inicializa a estrutura do display
 PIO pio = pio0;
 uint sm;
+bool led_g_active = false;
+bool led_b_active = false;
+bool display_color = false;
+int number_index = 0;
+
+/**
+ * Matriz que guarda os frames dos números
+ */
+const int numbers_frames[10][NUM_PIXELS] = {
+    {0, 1, 1, 1, 0,
+     0, 1, 0, 1, 0,
+     0, 1, 0, 1, 0,
+     0, 1, 0, 1, 0,
+     0, 1, 1, 1, 0
+    },//0
+    {0, 0, 1, 0, 0,
+     0, 0, 1, 1, 0,
+     0, 0, 1, 0, 0,
+     0, 0, 1, 0, 0,
+     0, 1, 1, 1, 0
+    },//1
+    {0, 1, 1, 1, 0,
+     0, 1, 0, 0, 0,
+     0, 1, 1, 1, 0,
+     0, 0, 0, 1, 0,
+     0, 1, 1, 1, 0
+    },//2
+    {0, 1, 1, 1, 0,
+     0, 1, 0, 0, 0,
+     0, 1, 1, 1, 0,
+     0, 1, 0, 0, 0,
+     0, 1, 1, 1, 0
+    },//3
+    {0, 1, 0, 1, 0,
+     0, 1, 0, 1, 0,
+     0, 1, 1, 1, 0,
+     0, 1, 0, 0, 0,
+     0, 0, 0, 1, 0
+    },//4
+    {0, 1, 1, 1, 0,
+     0, 0, 0, 1, 0,
+     0, 1, 1, 1, 0,
+     0, 1, 0, 0, 0,
+     0, 1, 1, 1, 0
+    },//5
+    {0, 1, 1, 1, 0,
+     0, 0, 0, 1, 0,
+     0, 1, 1, 1, 0,
+     0, 1, 0, 1, 0,
+     0, 1, 1, 1, 0
+    },//6
+    {0, 1, 1, 1, 0,
+     0, 1, 0, 0, 0,
+     0, 0, 1, 0, 0,
+     0, 0, 0, 1, 0,
+     0, 0, 0, 0, 0
+    },//7
+    {0, 1, 1, 1, 0,
+     0, 1, 0, 1, 0,
+     0, 1, 1, 1, 0,
+     0, 1, 0, 1, 0,
+     0, 1, 1, 1, 0
+    },//8
+    {0, 1, 1, 1, 0,
+     0, 1, 0, 1, 0,
+     0, 1, 1, 1, 0,
+     0, 1, 0, 0, 0,
+     0, 1, 1, 1, 0
+    } //9
+};
+
 
 
 void init_leds ()
@@ -53,6 +128,39 @@ void init_buttons ()
     gpio_pull_up(BUTTON_B);
 }
 
+uint32_t matrix_rgb(double r, double g, double b)
+{
+    unsigned char R = (unsigned char)(r * 255);
+    unsigned char G = (unsigned char)(g * 255);
+    unsigned char B = (unsigned char)(b * 255);
+
+    return (G << 24) | (R << 16) | (B << 8);
+} 
+
+/**
+ * Exibe um número na matriz de LEDS
+ */
+void draw_number()
+{
+    for (int i = 0; i < NUM_PIXELS; i++) {
+        if (numbers_frames[number_index][24-i] == 1.0) {
+            pio_sm_put_blocking(pio, sm, matrix_rgb(0.5, 0.0, 0.5)); 
+        } else {
+            pio_sm_put_blocking(pio, sm, matrix_rgb(0.0, 0.0, 0.0));
+        }
+    }
+}
+
+/**
+ * Exibe um caracter no display
+ */
+void draw_display_c(char c)
+{
+    ssd1306_fill(&ssd, display_color); //Limpa o display
+    ssd1306_draw_char(&ssd, c, 64, 32); //Desenha o caracter
+    ssd1306_send_data(&ssd); //Envia os dados para o display
+}
+
 int main()
 {
     stdio_init_all();
@@ -72,7 +180,6 @@ int main()
     /**
      * Configuração do display
      */
-    ssd1306_t ssd; // Inicializa a estrutura do display
     ssd1306_init(&ssd, WIDTH, HEIGHT, false, address, I2C_PORT); // Inicializa o display
     ssd1306_config(&ssd); // Configura o display
     ssd1306_send_data(&ssd); // Envia os dados para o display
@@ -96,18 +203,20 @@ int main()
     sm = pio_claim_unused_sm(pio, true);
     pio_matrix_program_init(pio, sm, offset, MATRIX);
     
-    bool cor = true;
     while (true)
     {
-        cor = !cor;
-        // Atualiza o conteúdo do display com animações
-        //ssd1306_fill(&ssd, cor); // Limpa o display
-        //ssd1306_rect(&ssd, 3, 3, 122, 58, cor, !cor); // Desenha um retângulo
-        ssd1306_draw_string(&ssd, "r s t u v", 8, 10); // Desenha uma string
-        ssd1306_draw_string(&ssd, "w x y z", 8, 30); // Desenha uma string
-        ssd1306_draw_string(&ssd, "PROF WILTON", 8, 48); // Desenha uma string      
-        ssd1306_send_data(&ssd); // Atualiza o display
+        if (uart_is_readable(UART_ID))
+        {
+            char c = uart_getc(UART_ID);
+            if (c >= '0' && c <= '9')
+            {
+                number_index = c - 48;
+                printf("Numero: %d\n", number_index);
+                draw_number();
 
-        sleep_ms(1000);
+            }
+            draw_display_c(c);
+        }
+        sleep_ms(500);
     }
 }
