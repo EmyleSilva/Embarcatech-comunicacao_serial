@@ -69,4 +69,4 @@ Para visualizar a simulação do projeto no Wokwi:
 
 ## Vídeo de Demonstração
 O vídeo demonstrativo do projeto pode ser encontrado no link abaixo:  
-[Link para o vídeo]()
+[Link para o vídeo](https://youtu.be/bPbepU82pqQ)
